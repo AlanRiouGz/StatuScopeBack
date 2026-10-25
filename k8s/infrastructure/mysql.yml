@@ -1,0 +1,75 @@
+# Apply once in the chosen namespace; keep out of Harness application manifests.
+apiVersion: v1
+kind: Service
+metadata:
+  name: statusscope-mysql
+spec:
+  clusterIP: None
+  selector:
+    app: statusscope-mysql
+  ports:
+    - name: mysql
+      port: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: statusscope-mysql
+spec:
+  serviceName: statusscope-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: statusscope-mysql
+  template:
+    metadata:
+      labels:
+        app: statusscope-mysql
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          args: ['--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci']
+          ports:
+            - name: mysql
+              containerPort: 3306
+          env:
+            - name: MYSQL_DATABASE
+              value: statusscope
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef: {name: statusscope-mysql, key: username}
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: statusscope-mysql, key: password}
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: statusscope-mysql, key: root-password}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: '2', memory: 1Gi}
+          startupProbe:
+            exec:
+              command: ['sh', '-c', 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$MYSQL_USER" "$MYSQL_DATABASE" -Nse "SELECT 1"']
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ['sh', '-c', 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$MYSQL_USER" "$MYSQL_DATABASE" -Nse "SELECT 1"']
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket: {port: mysql}
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi

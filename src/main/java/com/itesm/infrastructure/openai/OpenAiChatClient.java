@@ -14,6 +14,7 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -23,7 +24,7 @@ public class OpenAiChatClient implements LlmChatStrategy {
     private static final Logger LOG = Logger.getLogger(OpenAiChatClient.class);
 
     @ConfigProperty(name = "openai.api-key", defaultValue = "")
-    String apiKey;
+    Optional<String> apiKey = Optional.empty();
 
     @ConfigProperty(name = "openai.model", defaultValue = "gpt-4o")
     String model;
@@ -38,13 +39,14 @@ public class OpenAiChatClient implements LlmChatStrategy {
 
     @Override
     public String chat(List<AssistantChatMessage> messages) {
-        if (apiKey == null || apiKey.isBlank()) {
+        String configuredApiKey = apiKey.orElse("");
+        if (configuredApiKey.isBlank()) {
             LOG.warn("OpenAI API key is not configured — diagnosis assistant calls will fail");
             throw new OpenAiException("OpenAI API key is not configured");
         }
         try {
             ChatCompletionRequest request = new ChatCompletionRequest(model, toProviderMessages(messages), temperature);
-            ChatCompletionResponse response = httpClient.complete("Bearer " + apiKey, request);
+            ChatCompletionResponse response = httpClient.complete("Bearer " + configuredApiKey, request);
             if (response == null || response.getChoices() == null || response.getChoices().isEmpty()) {
                 throw new OpenAiException("Empty response from OpenAI");
             }

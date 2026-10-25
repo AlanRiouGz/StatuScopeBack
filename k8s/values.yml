@@ -1,0 +1,10 @@
+namespace: <+infra.namespace>
+image: <+artifact.image>
+imagePullPolicy: IfNotPresent
+registrySecretName: statusscope-registry
+replicas: 1
+nodePort: 30081
+databaseSecretName: statusscope-mysql
+firebaseSecretName: statusscope-firebase
+jdbcUrl: jdbc:mysql://statusscope-mysql:3306/statusscope?allowPublicKeyRetrieval=true&useSSL=false
+corsOrigins: http://localhost:30080
